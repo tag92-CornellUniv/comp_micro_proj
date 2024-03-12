@@ -1,0 +1,389 @@
+---
+title: "01_dada2"
+author: "Ri Desroches"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.align = "center",
+                      fig.path = "../figures/01_dada2/")
+
+```
+
+#Set my seed
+
+```{r set-seed}
+set.seed(011099)
+getwd()
+
+```
+
+#Load libraries
+
+```{r load-libraries}
+pacman::p_load(tidyverse, BiocManager, devtools, dada2, 
+               phyloseq, patchwork, DT, iNEXT, vegan, ggplot2, cowplot,
+               install = FALSE)
+
+```
+
+# Load data
+
+```{r}
+getwd()
+raw_fastqs_path <- "ncbi_data/fastq_files"
+#raw_fastqs_path
+#head(list.files(raw_fastqs_path))
+#str(list.files(raw_fastqs_path))
+
+forward_reads <- list.files(raw_fastqs_path, pattern="_1.fastq.gz", full.names = TRUE)
+#head(forward_reads)
+#str(forward_reads)
+
+reverse_reads <- list.files(raw_fastqs_path, pattern="_2.fastq.gz", full.names = TRUE)
+#head(reverse_reads)
+
+```
+
+# Evaluate raw sequence quality
+
+## Plot 12 random samples of plots
+```{r raw-quality-plots, fig.width=12, fig.height=8}
+random_samples <- sample(1:length(forward_reads), size=12)
+random_samples
+
+
+forward_raw_plot_12 <- plotQualityProfile(forward_reads[random_samples]) +
+  labs(title="Forward Reads Raw Quality")
+
+reverse_raw_plot_12 <- plotQualityProfile(reverse_reads[random_samples]) +
+  labs(title="Reverse Reads Raw Quality")
+
+forward_raw_plot_12
+reverse_raw_plot_12
+
+
+#ggplot2  was having difficulty combining plots, chatGPT suggested installing cowplot. and it worked better
+library(cowplot)
+
+
+# Combine plots using cowplot
+combined_plots <- plot_grid(forward_raw_plot_12, reverse_raw_plot_12, ncol = 2)
+
+# Display the combined plots
+print(combined_plots)
+```
+
+## Aggregated raw quality plots
+
+```{r aggregated-raw-quality-plots}
+
+forward_raw_aggregated_plot <- plotQualityProfile(forward_reads, aggregate = TRUE) + labs(title="Aggregated Raw Forward Reads")
+
+reverse_raw_aggregated_plot <- plotQualityProfile(reverse_reads, aggregate=TRUE) + labs(title= "Aggregated Raw Reverse Reads")
+
+plot_grid(forward_raw_aggregated_plot, reverse_raw_aggregated_plot, ncol=2)
+
+```
+
+There is a steep drop off in quality near the end of each reads, as expected. The reverse reads are also generally lower in quality, but this was also expected.
+
+There is also a small number of bases at the very beginning of each read that has a consistently low quality. This needs to be trimmed out.
+
+Some of the ends of the raw reads also have uncomfortably low quality.. around even a quality score of 10. We will see what happens further downstream with the analysis!
+
+## Prepare a placeholder for filtered reads
+```{r prep-filtered-sequences}
+samples <- sapply(strsplit(basename(forward_reads), "_"), `[`,1)
+head(samples)
+
+filtered_fastqs_path <- "ncbi_data/filtered_fastqs"
+filtered_fastqs_path
+
+filtered_forward_reads <-file.path(filtered_fastqs_path, paste0(samples,"_R1_filtered.fastq.gz"))
+length(filtered_forward_reads)
+
+filtered_reverse_reads <-file.path(filtered_fastqs_path, paste0(samples, "_R2_filtered.fastq.gz"))
+length(filtered_reverse_reads)
+head(filtered_reverse_reads)
+
+
+```
+
+# Filter and Trim Reads
+
+Everything hashed out here, because I decided to go with looser trimming parameters based on these results and did not want all of this to render in the knit document or take up space on the server.
+
+```{r filter-and-trim}
+#filtered_reads <- filterAndTrim(fwd=forward_reads,
+              #filt=filtered_forward_reads, 
+              #rev = reverse_reads,
+              #filt.rev=filtered_reverse_reads, 
+              #maxN=0, 
+              #maxEE=c(2,2), 
+              #trimLeft=c(19,20), 
+              #truncQ=2,
+              #rm.phix = TRUE, 
+              #compress=TRUE,
+              #multithread=TRUE)
+
+```
+
+## Viewing trimmed read quality!
+
+```{r trimmed-read-quality}
+#forward_filteredQual_plot_12 <- 
+ # plotQualityProfile(filtered_forward_reads[random_samples]) + 
+  #labs(title = "Trimmed Forward Read Quality")
+
+#reverse_filteredQual_plot_12 <- 
+  #plotQualityProfile(filtered_reverse_reads[random_samples]) + 
+  #labs(title = "Trimmed Reverse Read Quality")
+
+# Put the two plots together , using cowplot
+#plot_grid(forward_filteredQual_plot_12, reverse_filteredQual_plot_12, ncol=2)
+
+#Aggregate Trimmed Plots
+#forward_QC_plot <- plotQualityProfile(filtered_forward_reads, aggregate=TRUE) + labs(title="Filtered Aggregated Forward Reads")
+
+#reverse_QC_plot <- plotQualityProfile(filtered_reverse_reads,aggregate=TRUE) + labs(title="Filtered Aggregated Reverse Reads")
+
+#Plot together with cowplot again
+#plot_grid(forward_QC_plot, reverse_QC_plot, ncol=2)
+
+```
+
+Steep quality dropoff at the end is gone - successfully trimmed start of the reads
+
+End of the reads generally still has very low quality, might revisit and trim more if it impacts analysis later
+
+
+## Read output stats
+
+```{r read-trimming-stats}
+#filtered_df <- as.data.frame(filtered_reads)
+#head(filtered_df)
+
+#filtered_df %>% 
+  #reframe(median_reads_in = median(reads.in),
+          #median_reads_out = median(reads.out),
+          #median_percent_retained=(median(reads.out)/median(reads.in)))
+
+```
+
+That filtered out a LARGE NUMBER of reads!! Only 41% retained! Maybe further quality filtering is not necessary!!
+
+I will try again with slightly lower error filtering `maxEE=2,3` so that we can compare both outputs.
+
+## Trimming with lower error filtering
+
+```{r lower-error-threshold-trimming}
+#Filtered reads path placeholder
+filtered_fastqs_2_path <- "ncbi_data/filtered_fastqs_lower_threshold"
+
+#Filtered reads vectors
+filtered_forward_reads_2 <-file.path(filtered_fastqs_2_path, paste0(samples,"_R1_filtered.fastq.gz"))
+length(filtered_forward_reads)
+
+filtered_reverse_reads_2 <-file.path(filtered_fastqs_2_path, paste0(samples, "_R2_filtered.fastq.gz"))
+
+#Trimming with lower paramaters
+filtered_reads_2 <- filterAndTrim(fwd=forward_reads,
+              filt=filtered_forward_reads_2, 
+              rev = reverse_reads,
+              filt.rev=filtered_reverse_reads_2, 
+              maxN=0, 
+              maxEE=c(2,3), 
+              # Reverse reads were lower in quality - perhaps increasing the expected errors will increase retained reads
+              #This is the only parameter that has changed
+              trimLeft=c(19,20), 
+              truncQ=2,
+              rm.phix = TRUE, 
+              compress=TRUE,
+              multithread=TRUE)
+
+
+```
+
+## Assessing Second Trimming Read Quality
+```{r second-trimmed-read-quality}
+forward_filtered_qual_2 <- plotQualityProfile(filtered_forward_reads_2[random_samples]) + labs(title="Trimmed Forward Read Quality, Higher Error Rate")
+
+reverse_filtered_qual_2 <- plotQualityProfile(filtered_reverse_reads_2[random_samples]) + labs(title="Trimmed Reverse Read Quality, Higher Error")
+
+#Plot together with cowplot 
+plot_grid(forward_filtered_qual_2, reverse_filtered_qual_2, ncol=2)
+
+#Aggregated Trimmed Plots 2
+forward_QC_plot_2 <-plotQualityProfile(filtered_forward_reads_2, aggregate=TRUE) + labs(title="Filtered Aggregated Forward Reads 2 - higher error threshold")
+
+reverse_QC_plot_2 <- plotQualityProfile(filtered_reverse_reads_2, aggregate=TRUE) + labs(title="Filtered Aggregated Reverse Reads 2 - higher error threshold")
+
+#View the plots
+plot_grid(forward_QC_plot_2, reverse_QC_plot_2, ncol=2)
+
+```
+
+## Second trimming round output stats
+```{r second-trimming-round-stats}
+filtered_df <- as.data.frame(filtered_reads_2)
+head(filtered_df)
+
+filtered_df %>% 
+  reframe(median_reads_in = median(reads.in),
+          median_reads_out = median(reads.out),
+          median_percent_retained=(median(reads.out)/median(reads.in)))
+```
+
+Lower error parameters: Higher percent retained (59% vs 41% retained) and quality graph looks generally the same.
+
+Will move forward with 59% retained reads, because there is some degree of error correction during dada2 pipeline. May revisit later and look at what happens with NO trimming step at all.
+
+
+# Plot some QC visualizations here
+
+# Error modeling
+
+```{r error-modeling}
+error_forward_reads <- 
+  learnErrors(filtered_forward_reads_2, multithread=TRUE)
+
+error_reverse_reads <- 
+  learnErrors(filtered_reverse_reads_2, multithread=TRUE)
+
+forward_error_plot <- plotErrors(error_forward_reads, nominalQ=TRUE) +
+  labs(title="Forward Reads Error Model")
+
+reverse_error_plot <- plotErrors(error_reverse_reads, nominalQ=TRUE) +
+  labs(title="Reverse Reads Error Model")
+
+plot_grid(forward_error_plot,reverse_error_plot, ncol=2)
+```
+
+I find it difficult to interpret this, but generally error rates drop with increased Phred score.
+
+# Infer ASVs
+
+```{r infer-asvs}
+#forward and reverse sequences
+dada_forward <-dada(filtered_forward_reads_2,
+                    err=error_forward_reads, 
+                    multithread=TRUE)
+
+dada_reverse <- dada(filtered_reverse_reads_2,
+                     err=error_reverse_reads,
+                     multithread = TRUE)
+
+```
+
+# Merge Forward and Reverse ASVs
+
+```{r merge-asvs}
+merged_asvs <- mergePairs(dada_forward, 
+                          filtered_forward_reads_2, 
+                          dada_reverse, 
+                          filtered_reverse_reads_2, 
+                          verbose=TRUE)
+
+head(merged_asvs)
+
+```
+
+# Create Raw ASV count table
+
+```{r asv-count-table}
+raw_asv_table <- makeSequenceTable(merged_asvs)
+dim(raw_asv_table)
+class(raw_asv_table)
+
+```
+
+# Trim ASVs
+```{r trimming-asvs}
+#Length of sequences?
+table(nchar(getSequences(raw_asv_table)))
+
+data.frame(Seq_Length = nchar(getSequences(raw_asv_table))) %>%
+  ggplot(aes(x = Seq_Length )) + 
+  geom_histogram(binwidth=5, 
+                   breaks = seq(280, 350, by = 2)) + 
+  labs(title = "Raw distribution of ASV length")
+
+raw_asv_table_trimmed <- raw_asv_table[,nchar(colnames(raw_asv_table)) %in% 283:300]
+  
+sum(raw_asv_table_trimmed)/sum(raw_asv_table)
+
+data.frame(Seq_Length = nchar(getSequences(raw_asv_table_trimmed))) %>%
+  ggplot(aes(x = Seq_Length )) + 
+  geom_histogram() + 
+  labs(title = "Trimmed distribution of ASV length")
+
+#Most still at 386, 99% reads retained after trim
+```
+
+# Remove Chimeras
+
+```{r remove-chimeras}
+nochimeras_asv_table <- removeBimeraDenovo(raw_asv_table_trimmed, method="consensus", multithread=TRUE,verbose=TRUE)
+
+dim(nochimeras_asv_table)
+
+#6732 ASVs retained
+sum(nochimeras_asv_table)/sum(raw_asv_table)
+sum(nochimeras_asv_table)/sum(raw_asv_table_trimmed)
+#92% of asvs retained, 8% removed from start
+
+```
+
+# Track Read Counts
+```{r track-read-counts}
+getN <- function(x) sum(getUniques(x))
+
+track <- cbind(filtered_reads_2, sapply(dada_forward, getN), sapply(dada_reverse, getN), sapply(merged_asvs, getN), rowSums(nochimeras_asv_table))
+
+head(track)
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "nochim")
+rownames(track) <- samples
+
+track_df <-
+  track %>% 
+  as.data.frame() %>%
+  rownames_to_column(var="names") %>%
+  mutate(perc_reads_retained = 100 * nochim / input)
+
+DT::datatable(track_df)
+
+
+track_df %>%
+  pivot_longer(input:nochim, names_to = "read_type", values_to = "num_reads") %>%
+  mutate(read_type = fct_relevel(read_type, 
+                                 "input", "filtered", "denoisedF", "denoisedR", "merged", "nochim")) %>%
+  ggplot(aes(x = read_type, y = num_reads, fill = read_type)) + 
+  geom_line(aes(group = names), color = "grey") + 
+  geom_point(shape = 21, size = 3, alpha = 0.8) + 
+  scale_fill_brewer(palette = "Spectral") + 
+  labs(x = "Filtering Step", y = "Number of Sequences") + 
+  theme_bw()
+
+# Which sample had the lowest number of reads going into dada2?
+lowest_reads <- track_df[order(track_df$input),]
+head(lowest_reads)
+
+
+# Which sample had the most reads filtered out?
+most_filtered <- track_df[order(track_df$perc_reads_retained),]
+head(most_filtered)
+
+least_filtered <-
+  track_df[order(track_df$perc_reads_retained, decreasing=TRUE),]
+head(least_filtered)
+
+range(track_df$nochim)
+median(track_df$nochim)
+
+```
+
