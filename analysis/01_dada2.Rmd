@@ -365,10 +365,10 @@ table(nchar(getSequences(raw_asv_table)))
 data.frame(Seq_Length = nchar(getSequences(raw_asv_table))) %>%
   ggplot(aes(x = Seq_Length )) + 
   geom_histogram(binwidth=5, 
-                   breaks = seq(280, 350, by = 2)) + 
+                   breaks = seq(265, 280, by = 2)) + 
   labs(title = "Raw distribution of ASV length")
 
-raw_asv_table_trimmed <- raw_asv_table[,nchar(colnames(raw_asv_table)) %in% 283:300]
+raw_asv_table_trimmed <- raw_asv_table[,nchar(colnames(raw_asv_table)) %in% 260:290]
   
 sum(raw_asv_table_trimmed)/sum(raw_asv_table)
 
