@@ -1,0 +1,180 @@
+---
+title: "02_preprocessing"
+author: "Ri Desroches"
+date: "`r Sys.Date()`"
+output:
+  html_document: 
+    code_folding: show
+    theme: spacelab
+    highlight: pygments
+    keep_md: no
+    toc: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+      toc_depth: 3
+  keep_md: true  
+editor_options: 
+  
+  chunk_output_type: console
+---
+
+```{setup}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.align = "center",
+                      fig.path = "../figures/02_preprocessing/") # send any figure output to this folder 
+```
+
+# Load Libraries
+
+```{r load-libraries}
+library(devtools)
+library(phyloseq)
+library(tidyverse)
+```
+
+# Goals
+
+Here I will create a phyloseq object from my output in the dada2 workflow. I will combine:
+
+1. ASV table
+2. Taxonomy table
+3. Track Reads metadata
+
+Then, I will remove from the data:
+
+1. Chloroplasts
+2. Mitochondria
+3. Low read samples
+
+# Load data
+```{r load-data}
+#load asv table
+
+load("data/01_dada2/asv_counts.RData")
+
+
+#Fix names
+sample_names <- colnames(asv_table)
+sample_names[1:5]
+samples_fixed <- sapply(strsplit(basename(sample_names), "_"), `[`,1)
+samples_fixed[1:5]
+
+#rewrite ASV count file to fix names
+colnames(asv_table) <- samples_fixed
+str(asv_table)
+
+```
+
+# Taxonomy Table
+```{r taxonomy-table}
+tax_df <- read.table("data/01_dada2/asv_taxonomy.tsv", sep="\t", skip=1)
+
+#fix column names
+colnames(tax_df) <- c("asv_names", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species", "ASV", "ASVSeq")
+
+#Tax table matrix
+tax_mat <- 
+  tax_df %>%
+  tibble::column_to_rownames(., var="asv_names") %>%
+  as.matrix()
+```
+
+## Track reads data
+```{r load-track-reads}
+load("data/01_dada2/track_read_counts.Rdata")
+
+head(track_df)
+dim(track_df)
+
+## load in metadata
+metadata_df <- read.csv("data/01_dada2/SraRunTable.txt")
+dim(metadata_df)
+colnames(metadata_df)
+
+#rename Run to names (to match other files)
+colnames(metadata_df)[1] <- "names"
+colnames(metadata_df)
+
+
+# merge metadata with track reads
+metadata_track_reads_df <- metadata_df %>%
+  left_join(., track_df, by = "names") 
+
+dim(metadata_track_reads_df)
+colnames(metadata_track_reads_df)
+ 
+#join successful!!
+#rename rownames as sample names
+row.names(metadata_track_reads_df)
+row.names(metadata_track_reads_df) <- metadata_track_reads_df$names
+row.names(metadata_track_reads_df)
+
+```
+
+# Handoff to phyloseq!
+```{r phyloseq-handoff}
+#make sure everything is all set 
+dim(asv_table)
+dim(tax_mat)
+stopifnot(row.names(asv_table) == row.names(tax_mat))
+
+#Construct phyloseq object
+raw_physeq <- phyloseq(otu_table(asv_table, taxa_are_rows = TRUE),
+                       sample_data(metadata_track_reads_df),
+                       tax_table(tax_mat))
+
+raw_physeq
+
+#save the object!
+save(raw_physeq, file="data/02_preprocessing/raw_physeq.RData")
+```
+
+# Clean up the data
+
+Remove chloroplasts and mitochondria
+
+```{r remove-mito-chloro}
+
+#remove chloroplasts
+nochloros_physeq <- 
+  raw_physeq %>%
+  subset_taxa(Order != "Chloroplast" | is.na(Order))
+
+#How many chloroplasts were removed?
+num_chloro_asvs <-ntaxa(raw_physeq) - ntaxa(nochloros_physeq)
+num_chloro_asvs
+
+# remove mitochondria
+nochlorosmito_physeq <-
+  nochloros_physeq %>%
+  subset_taxa(Family != "Mitochondria" | is.na(Family))
+
+#how many mitochondria were removed?
+num_mitochondria_asvs <- ntaxa(nochloros_physeq) - ntaxa(nochlorosmito_physeq)
+num_mitochondria_asvs
+
+#total ASV counts?
+#start number:
+ntaxa(raw_physeq)
+#end number:
+ntaxa(nochlorosmito_physeq)
+# percent retained:
+ntaxa(nochlorosmito_physeq)/ntaxa(raw_physeq)
+
+#save phyloseq object
+save(nochlorosmito_physeq, file="data/02_preprocessing/cleaned_physeq.RData")
+
+
+```
+
+# Information about controls
+
+There are 18 control samples taken from unburned forests. These will not be removed for the analysis. There were no water controls run through the sequencing process to help ID contaminant ASVs.
+
+# Session information
+```{r session-info}
+devtools::session_info()
+
+```
+
