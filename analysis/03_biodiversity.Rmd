@@ -34,8 +34,6 @@ metadata_df <-
   sample_data() %>%
   data.frame()
 
-view(metadata_df)
-
 ```
 
 ### Information about sample naming conventions in "site" column in dataframe:
@@ -63,7 +61,6 @@ metadata_fixed_df <- metadata_df %>%
  mutate(time_frame = gsub("^CH[A-F]?$", "unburned", Site),
          time_frame = gsub("([1-4])[A-F]?$", "\\1", time_frame))
 
-view(metadata_fixed_df)
 
 ```
 
@@ -117,7 +114,7 @@ dim(iNEXT_input_df)
 
 # Diversity Plotting
 
-```{r diversity-plots}
+```{r diversity-plots-with-ggiNEXT}
 
 #do not want to rerun inext when loading file - call previously calculated inext object/data
 
@@ -169,7 +166,7 @@ This is a really busy graph - and when plotting with horizon colors it is also b
 The graph scale is also slightly thrown off by the top few samples that have a high number of ASVs
 
 
-```{r diversity-plot-2}
+```{r diversity-plot-2-ggiNEXT}
 
 ggiNEXT(iNEXT_data, type=1, facet.var = "Order.q")+
   facet_wrap(~Order.q, scales = "fixed") + 
@@ -184,13 +181,230 @@ ggiNEXT(iNEXT_data, type=1, facet.var = "Order.q")+
 
 ```
 
+Later, if I have more time, I want to graph more and play around with ggiNEXT plots.
 
-
-Try manually plotting the graph to see better
+Right now, these plots are really messy, and I want to manually plot them - both for better visualization and practice using ggplot.
 
 # Manually plotted iNEXT data
 
+We are looking, again, at both Soil Horizon and Time frame as ways to group and examine samples
+
 ```{r manually-plotting-iNEXT}
+
+# manual data frame
+# pull out rarefaction data
+#fix name for left join function
+
+iNEXT_manual_df <-
+  iNEXT_data$iNextEst$size_based %>%
+  dplyr::rename(names=Assemblage)%>%
+  left_join(., metadata_fixed_df, by="names") %>%
+  left_join(., data.frame(timeframe_colors=timeframe_colors,
+                          time_frame=names(timeframe_colors)),by="time_frame") %>%
+  left_join(., data.frame(sample_horizon_colors = sample_horizon_colors,
+                          horizon=names(sample_horizon_colors)), by="horizon")
+
+#plotting rarefaction curve
+
+iNEXT_manual_df %>%
+  dplyr::filter(Method=="Rarefaction") %>%
+  ggplot(aes(x=m,y=qD, color=time_frame, group=names)) +
+  geom_line()+
+  facet_grid(Order.q~time_frame,scales="fixed")+
+  scale_color_manual(values=timeframe_colors)
+
+iNEXT_manual_df %>%
+  dplyr::filter(Method=="Rarefaction") %>%
+  ggplot(aes(x=m,y=qD, color=horizon, group=names)) +
+  geom_line()+
+  facet_grid(Order.q~horizon,scales="fixed")+
+  scale_color_manual(values=sample_horizon_colors)
+
+```
+
+Note that scales are set to fixed to illustrate difference in Order.q
+
+# Plotting and adding extrapolated rarefaction to manual rarefaction graph
+
+```{r manually-plotting-extrapolation}
+
+rarefaction_df <-
+  iNEXT_manual_df %>%
+  dplyr::filter(Method=="Rarefaction") 
+dim(rarefaction_df)
+
+extrapolation_df <-
+  iNEXT_manual_df %>%
+  dplyr::filter(Method=="Extrapolation")
+dim(extrapolation_df)
+
+  
+ggplot() +
+  geom_line(data = rarefaction_df, aes(x = m, y = qD, color = time_frame, group = names)) +
+  geom_line(data = extrapolation_df, aes(x = m, y = qD, color = time_frame, group = names, linetype = "Extrapolation Prediction"), alpha = 0.9, color = "skyblue") +
+  scale_color_manual(values = timeframe_colors) +
+  facet_grid(Order.q ~ time_frame, scales = "fixed") +
+  labs(x="Number of Sequences", y="Effective number of ASVs", linetype = "Extrapolated", color = "Time Frame")+
+   guides(color = guide_legend(order = 1), linetype = guide_legend(order = 2))
+  
+
+
+ggplot() +
+  geom_line(data = rarefaction_df, aes(x = m, y = qD, color = horizon, group = names)) +
+  geom_line(data = extrapolation_df, aes(x = m, y = qD, color = horizon, group = names, linetype="Extrapolation prediction"), alpha = 0.9, color = "skyblue") +
+  scale_color_manual(values = sample_horizon_colors) +
+  facet_grid(Order.q ~ horizon, scales = "fixed") +
+  labs(x="Number of Sequences", y="Effective number of ASVs", linetype = "Extrapolated", color = "Horizon")+
+   guides(color = guide_legend(order = 1), linetype = guide_legend(order = 2))
+
+
+```
+
+# Interpretations
+
+As expected, the number of samples called when looking at general richness is very high. The number of effective ASVs decreases when looking at just common taxa as identified by the Exponential Shannon index, and decreases again when looking at the Inverse Simpson index which shows only dominant taxa.
+
+All the curves seem to plateau which indicates that generally the sampling depth is sufficient to infer diversity metrics from the data. 
+
+Broadly, there is little difference in sample richness between time frames or horizon groups.
+
+In the time frame groups, there is one outlier sample in the 1 year group that has almost 4000 ASVs called. If that one sample is ignored, generally unburned forests have the highest number of called ASVs and higher diversity across all three metrics. This is most visually apparent in the Inverse Simpson diversity metric.
+
+Interestingly, the 1 and 4 year burn timeframes have less diversity generally than the 2 year burn timeframe.
+
+When looking at the sample horizon graph, there are slightly fewer species called in the B horizon sequencing data than in the A and E horizon sequencing data, but the number of dominant species between all three horizon groups are roughly the same.
+
+Moving on to more graphing for better visualisation...
+
+# Diversity Boxplots
+
+```{r diversity-boxplots}
+
+observed_df <-
+  iNEXT_manual_df %>%
+  dplyr::filter(Method=="Observed")
+
+observed_df %>%
+  ggplot(aes(x=time_frame, y=qD, fill=time_frame, color=time_frame))+
+  facet_wrap(~Order.q, scales = "fixed") + 
+  geom_jitter(size = 2.5) + 
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + 
+  scale_color_manual(values = timeframe_colors) + 
+  scale_fill_manual(values = timeframe_colors) + 
+  labs(y = "Effective Number of ASVs") + 
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+observed_df %>%
+  ggplot(aes(x=horizon, y=qD, fill=horizon, color=horizon))+
+  facet_wrap(~Order.q, scales = "fixed") + 
+  geom_jitter(size = 2.5) + 
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + 
+  scale_color_manual(values = sample_horizon_colors) + 
+  scale_fill_manual(values = sample_horizon_colors) + 
+  labs(y = "Effective Number of ASVs") + 
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+```
+
+There is no continuous environmental variable to examine. 
+What if we examine them in a combined boxplot?
+
+Created both time frame grouped by horizon, and horizon grouped by time frame
+
+There are not many other variables in the metadata to examine, as illustrated here:
+
+```{r metadata-variables}
+colnames(metadata_df)
+view(metadata_df)
+```
+
+Elevation is the same for all samples
+Depth generally corresponds with sample horizon
+All samples were collected in the same state
+
+```{r combined-boxplots}
+
+observed_df %>%
+  ggplot(aes(x = horizon, y = qD, fill = time_frame, color = time_frame)) +
+  facet_wrap(~Order.q, scales = "fixed") + 
+  geom_boxplot(alpha = 0.5, outlier.shape=NA) + 
+   geom_jitter(size = 2.5, position = position_jitterdodge(dodge.width = 0.99, jitter.width = 0.1)) +
+  scale_color_manual(values = timeframe_colors) + 
+  scale_fill_manual(values = timeframe_colors) + 
+  labs(y = "Effective Number of ASVs") + 
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# Alternative way of viewing:
+observed_df %>%
+  ggplot(aes(x = time_frame, y = qD, fill = horizon, color = horizon)) +
+  facet_wrap(~Order.q, scales = "fixed") + 
+  geom_boxplot(alpha = 0.5, outlier.shape=NA) + 
+   geom_jitter(size = 2.5, position = position_jitterdodge(dodge.width = 0.99, jitter.width = 0.1)) +
+  scale_color_manual(values = sample_horizon_colors) + 
+  scale_fill_manual(values = sample_horizon_colors) + 
+  labs(y = "Effective Number of ASVs") + 
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+But maybe we can examine via depth if we separate out burn time frame?
+
+# Examining how depth impacts diversity
+
+Firstly, we need to fix the labels of the Depth column, because it currently includes cm listed after the number so this makes it non-numeric
+
+```{r fix-depth-labels}
+iNEXT_manual_df_cm <- iNEXT_manual_df %>%
+  dplyr::filter(Method == "Observed") %>%
+  mutate(Depth = as.numeric(sub("cm", "", Depth)))
+
+```
+
+Then it can be graphed properly:
+
+```{r depth-based-plots}
+iNEXT_manual_df_cm %>%
+  dplyr::filter(Method == "Observed") %>%
+  ggplot(aes(x = Depth, y = qD)) + 
+  facet_grid(time_frame ~ Order.q, scales = "free") + 
+  geom_point(aes(color = time_frame)) + 
+  stat_smooth(method="lm")+
+  labs(x = "Depth (cm)", y = "# of ASVs") + 
+  scale_color_manual(values = timeframe_colors) + 
+  theme_bw() + 
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+Relationship seems very linear in the 1 year burn timeframe, but the model seems like a much looser fit in 2 and 4 year burn timeframes. The points are very scattered so it doesn't appear generally that there is a very significant relationship between burn time frame and sample depth when looking at diversity metrics. 
+
+If we don't facet out the time frame, just for fun, the graphs get extremely messy.
+
+```{r depth-based-unfaceted-plots}
+iNEXT_manual_df_cm %>%
+  dplyr::filter(Method == "Observed") %>%
+  ggplot(aes(x = Depth, y = qD)) + 
+  facet_wrap(.~Order.q, scales = "free") + 
+  geom_point(aes(color = time_frame)) + 
+  stat_smooth(method="lm")+
+  labs(x = "Depth (cm)", y = "# of ASVs") + 
+  scale_color_manual(values = timeframe_colors) + 
+  theme_bw() + 
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+```
+
+So maybe we can interpret, generally, that burn time frame and soil depth combined have an impact on diversity. It generally decreases with soil depth across all diversity metrics in 1 year and 2 year burn forests, but increases with soil depth in 4 year and unburned forests.
+
+```{r session-info}
+
+devtools::session_info()
 
 ```
 
