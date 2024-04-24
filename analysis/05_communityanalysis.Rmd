@@ -89,9 +89,9 @@ raw_totalseqs_df <-
   sample_sums() %>%
   data.frame()
 
-colnames(raw_totalseqs_df_1)[1] <- "TotalSeqs"
+colnames(raw_totalseqs_df)[1] <- "TotalSeqs"
 
-head(raw_totalseqs_df_1)
+head(raw_totalseqs_df)
 
 
 # make histogram
@@ -321,9 +321,29 @@ plot_ordination(
   physeq=scaled_unfiltered_rooted_physeq,
   ordination=unfiltered_unifrac,
   color="horizon",
-  title="Unfiltered-Kingdom Dataset Sorensen PCoA")+
+  title="Unfiltered-Kingdom Dataset Weighted Unifrac PCoA")+
   geom_point(size=4, alpha=0.6, aes(color=horizon))+
   scale_color_manual(values=sample_horizon_colors)
+
+```
+
+### Permanova
+
+```{r permanova}
+
+scaled_sorensen <- phyloseq::distance(scaled_unfiltered_rooted_physeq, method = "bray", binary = TRUE)
+scaled_bray <- phyloseq::distance(scaled_unfiltered_rooted_physeq, method = "bray")
+scaled_unifrac <- phyloseq::distance(scaled_unfiltered_rooted_physeq, method = "wunifrac")
+
+metadata <- data.frame(sample_data(scaled_unfiltered_rooted_physeq))
+
+adonis2(scaled_sorensen ~ burn_timeframe, data=metadata)
+
+adonis2(scaled_bray ~ burn_timeframe, data=metadata)
+
+adonis2(scaled_unifrac ~ burn_timeframe, data=metadata)
+
+adonis2(scaled_unifrac ~ horizon, data=metadata)
 
 ```
 
