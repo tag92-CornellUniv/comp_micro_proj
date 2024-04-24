@@ -1,0 +1,442 @@
+---
+title: "04_phylogeny"
+author: "Ri Desroches"
+date: "`r Sys.Date()`"
+output:
+  html_document: 
+    code_folding: show
+    theme: spacelab
+    highlight: pygments
+    keep_md: no
+    toc: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+      toc_depth: 3
+  keep_md: true  
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.align = "center",
+                      fig.path = "../figures/04_phylogeny/")
+```
+
+# Setup 
+
+## load packages
+
+```{r load-packages}
+pacman::p_load(phytools, ggtree, RColorBrewer, tidyverse, phyloseq, install = FALSE)
+```
+
+## set seed
+
+```{r set-seed}
+set.seed(0110)
+```
+
+## load data
+
+```{r load-data}
+load("data/02_preprocessing/cleaned_physeq.RData")
+clean_physeq <- nochlorosmito_physeq
+
+#just renaming variable for ease of coding throughout
+
+```
+
+# File goals
+
+1. Create ASV fasta file from phyloseq obj 
+2. Align 16S sequences with MAFFT
+3. Create an unrooted tree with fasttree2 
+4. Save tree file
+5. Add tree to phyloseq object
+6. Visualize with ggtree
+7. Root tree and merge with phyloseq
+8. Save rooted tree
+
+# Alignment and unrooted tree
+
+## Create ASV Fasta file
+
+```{r pull-out-asvs}
+
+# data frame of asvs and asv names
+
+colnames(clean_physeq@tax_table)
+
+asv_seq_df <-
+  clean_physeq@tax_table %>%
+  data.frame()%>%
+  dplyr::select(ASV,ASVSeq)
+
+# Make fasta headers
+asv_seq_df$ASV <- paste0(">", asv_seq_df$ASV)
+
+#create fasta object
+asv_seq_fasta <- c(rbind(asv_seq_df$ASV, asv_seq_df$ASVSeq))
+head(asv_seq_fasta)
+
+#in fasta format
+
+# write to a file
+write(asv_seq_fasta, 
+      file="data/04_phylogeny/asv_seqs.fasta")
+
+```
+
+## Align 16S sequences in fasta file
+
+Note: need to run bash code for this step
+
+```{r run-mafft, engine='bash', engine.opts='-l'}
+
+# provide path to mafft
+#export PATH=/programs/mafft/bin:$PATH
+# change directories to fasta file 
+#cd data/04_phylogeny/
+#pwd
+
+# set seed
+#RANDOM=0110
+
+# Run mafft
+#/programs/mafft/bin/mafft --auto asv_seqs.fasta > mafft_aligned_asvs.fasta
+
+# back to project directory
+#cd ../../
+#pwd
+```
+
+## FastTree2
+
+More bash code
+
+```{r run-fasttree, engine='bash', engine.opts='-l'}
+# fasttree export path
+#export PATH=/programs/FastTree-2.1.11:$PATH
+
+#switch directory
+#cd data/04_phylogeny/
+
+#run fasttree
+#dataset is very large, use fastest
+
+#FastTree -nt -gtr -fastest -log FastTree.log mafft_aligned_asvs.fasta > asvs_unrooted.tree
+
+#cd to main directory
+#cd ../../
+#pwd
+
+```
+
+# Inspect, prune, and root tree
+
+## load in tree
+
+```{r load-tree}
+unrooted_tree <- read.tree("data/04_phylogeny/asvs_unrooted.tree")
+unrooted_tree
+```
+
+## merge phyloseq
+
+```{r merge-phyloseq}
+unrooted_physeq <-
+  merge_phyloseq(clean_physeq, unrooted_tree)
+
+unrooted_physeq
+```
+
+## plot tree with ggtree
+
+```{r plot-with-ggtree}
+
+kingdomtree <-
+  ggtree(unrooted_physeq)  +
+  geom_tippoint(mapping = aes(color = Kingdom)) + 
+  scale_color_manual(values = c("pink", "maroon", "grey")) +
+  labs(title = "Unrooted Tree") + 
+  theme(legend.position = "bottom")
+
+
+
+```
+
+## Inspect tree more closely and ID some grey nodes
+
+```{r inspect-grey-nodes}
+kingdomnodetree <-
+  kingdomtree + geom_text(aes(label=node), hjust= 2, vjust = -0.3, size = 1)
+
+kingdomnodetree
+
+# node 37398, 37395 in the middle of all the grey
+
+node_number <- "37398"
+node_number_2 <- "37395"
+
+viewClade(kingdomnodetree +
+          geom_text(aes(label=ASV), hjust=-1),
+          node=node_number)
+
+#ASV 32951 ID'ed as a NA taxonomy asv
+
+viewClade(kingdomnodetree +
+          geom_text(aes(label=ASV), hjust=-1),
+          node=node_number_2)
+
+#another NA ASV = 9195
+
+```
+
+## Extract sequences, examine in blast
+
+```{r ID-asvs}
+unrooted_physeq %>%
+  subset_taxa(., ASV == "ASV_32951") %>%
+  tax_table() %>%
+  data.frame()
+
+unrooted_physeq %>%
+  subset_taxa(., ASV == "ASV_9195") %>%
+  tax_table() %>%
+  data.frame()
+
+
+```
+
+Blasted sequence results:
+
+32951 is "uncultured Planctomycetes partial 16S rRNA gene"
+
+9195 is "Uncultured bacterium clone OTU645_MIX3.66929 16S ribosomal RNA gene, partial sequence"
+
+Looks like they are maybe "new taxa" or sequences not represented by the databases.
+
+## Remove NA classification sequences from physeq 
+
+```{r remove-NA-taxa}
+
+# physeq object from start of document
+clean_physeq
+
+clean_physeq %>%
+  subset_taxa(., is.na(Kingdom)) %>%
+  otu_table() %>%
+  data.frame() %>%
+  colSums()
+
+#Woah... that is a lot!!!! But still remove and examine tree.
+
+filtered_physeq <- subset_taxa(clean_physeq, !is.na(tax_table(clean_physeq)[, "Kingdom"]))
+
+# How many ASVs were removed?
+clean_physeq
+filtered_physeq
+
+# 35337 starting taxa, 26785 ending taxa
+
+print(c("The number of NA Kingdom taxa removed is:",35337-26785) )
+
+print(c("The percentage of NA Kingdom taxa removed is", (35337-26785)/35337))
+```
+
+# Run MAFFT again on filtered phyloseq 
+
+## Create NA-Filtered ASV Fasta file
+
+```{r pull-filtered-ASVs}
+
+colnames(filtered_physeq@tax_table)
+
+asv_seq_df_filtered <-
+  filtered_physeq@tax_table %>%
+  data.frame()%>%
+  dplyr::select(ASV,ASVSeq)
+
+# Make fasta headers
+asv_seq_df_filtered$ASV <- paste0(">", asv_seq_df_filtered$ASV)
+
+#create fasta object
+asv_seq_fasta_filtered <- c(rbind(asv_seq_df_filtered$ASV, asv_seq_df_filtered$ASVSeq))
+head(asv_seq_fasta_filtered)
+
+#in fasta format now
+
+# write to a file
+write(asv_seq_fasta_filtered, 
+      file="data/04_phylogeny/asv_seqs_filtered.fasta")
+
+```
+
+## Align Filtered 16S sequences in fasta file
+
+Note: need to run bash code for this step
+
+```{r run-mafft-on-filtered-seqs, engine='bash', engine.opts='-l'}
+
+# provide path to mafft
+#export PATH=/programs/mafft/bin:$PATH
+# change directories to fasta file 
+#cd data/04_phylogeny/
+#pwd
+
+# set seed
+#RANDOM=0110
+
+# Run mafft
+#/programs/mafft/bin/mafft --auto asv_seqs_filtered.fasta > mafft_aligned_asvs_filtered.fasta
+
+# back to project directory
+#cd ../../
+#pwd
+```
+
+## FastTree2 on filtered and aligned fasta
+
+```{r run-fasttree-on-filtered-seqs, engine='bash', engine.opts='-l'}
+# fasttree export path
+#export PATH=/programs/FastTree-2.1.11:$PATH
+
+#switch directory
+#cd data/04_phylogeny/
+
+#run fasttree
+#dataset is very large, use fastest
+
+#FastTree -nt -gtr -fastest -log FastTree.log mafft_aligned_asvs_filtered.fasta > asvs_unrooted_filtered.tree
+
+#cd to main directory
+#cd ../../
+#pwd
+
+```
+
+## load in filtered aligned tree
+
+```{r load-filtered-tree}
+unrooted_filtered_tree <- read.tree("data/04_phylogeny/asvs_unrooted_filtered.tree")
+unrooted_filtered_tree
+```
+
+
+
+## merge filtered phyloseq
+
+```{r merge-filtered-phyloseq}
+unrooted_physeq_filtered <-
+  merge_phyloseq(filtered_physeq, unrooted_filtered_tree)
+
+unrooted_physeq
+```
+
+## plot filtered tree with ggtree
+
+Viewing tree without ASV labels because there are so many it becomes illegible 
+
+```{r plot-filtered-alignment-with-ggtree}
+
+filtered_kingdomtree <-
+  ggtree(unrooted_physeq_filtered)  +
+  geom_tippoint(mapping = aes(color = Kingdom)) + 
+  scale_color_manual(values = c("pink", "maroon")) +
+  labs(title = "Unrooted Filtered Tree") + 
+  theme(legend.position = "bottom")
+
+filtered_kingdomtree
+
+```
+
+# Root Both trees
+
+## Rooting unfiltered
+
+```{r rooting-unfiltered-tree}
+
+unfiltered_tree_toroot <- phy_tree(unrooted_physeq)
+
+is.rooted(unfiltered_tree_toroot)
+
+midpoint_rooted_unfiltered_tree <-
+  midpoint.root(unfiltered_tree_toroot)
+
+is.rooted(midpoint_rooted_unfiltered_tree)
+
+```
+
+
+## Viewing unfiltered tree
+
+```{r viewing-unfiltered-rooted-tree}
+
+unfiltered_rooted_tree_physeq <-
+  merge_phyloseq(clean_physeq, midpoint_rooted_unfiltered_tree)
+
+unrooted_physeq
+midpoint_rooted_unfiltered_tree
+
+unfiltered_rooted_tree_physeq
+
+ggtree(unfiltered_rooted_tree_physeq) +
+  geom_tippoint(mapping=aes(color=Kingdom))+
+  labs(title="Rooted Unfiltered Tree")+ 
+  scale_color_manual(values = c("pink", "maroon")) 
+
+```
+
+
+## Rooting filtered
+
+```{r rooting-filtered-tree}
+
+filtered_tree_toroot <- phy_tree(unrooted_physeq_filtered)
+
+is.rooted(filtered_tree_toroot)
+
+midpoint_rooted_filtered_tree <-
+  midpoint.root(filtered_tree_toroot)
+
+is.rooted(midpoint_rooted_filtered_tree)
+
+filtered_rooted_tree_physeq <- 
+  merge_phyloseq(filtered_physeq, midpoint_rooted_filtered_tree)
+
+```
+
+
+## Viewing filtered tree
+
+```{r viewing-filtered-rooted-tree}
+ggtree(filtered_rooted_tree_physeq) +
+  geom_tippoint(mapping=aes(color=Kingdom))+
+  scale_color_manual(values = c("pink", "maroon")) +
+  labs(title="Rooted Filtered Tree")
+
+```
+
+## Save phyloseq objects
+
+```{r save-phyloseq-objects}
+
+
+save(list = c("unrooted_physeq", #unrooted physeq
+              "unrooted_physeq_filtered", #unrooted filtered physeq
+              "unfiltered_rooted_tree_physeq", #rooted tree
+              "filtered_rooted_tree_physeq"), #rooted filtered tree
+              file = "data/04_phylogeny/phytree_preprocessed_physeq.RData")
+
+```
+
+
+# Session information
+
+```{r session-info}
+devtools::session_info()
+
+```
+
