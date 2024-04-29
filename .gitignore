@@ -1,1 +1,3 @@
-x
+phytree_preprocessed_physeq.RData
+*.fastq.gz
+.Rproj.user

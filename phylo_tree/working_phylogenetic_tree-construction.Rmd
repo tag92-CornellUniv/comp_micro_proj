@@ -1,0 +1,199 @@
+---
+title: "community_analysis_prescribed-fires"
+author: "T. Griffin"
+date: "2024-04-25"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                       fig.path = "./phylo_tree/figures/")
+```
+
+
+##Goals for this part
+1. Load in preprocessed phyloseq object.
+2. Create ASV fasta file from the phyloseq object.
+3. Align the 16S sequences from fasta file with MAFFT.
+4. Create a tree with FastTree2.
+
+```{r}
+#this will set my seed again
+set.seed(02262000)
+```
+
+```{r}
+#I will load the packages that I need and use the same color combos from last time
+
+library(ggtree)
+library(phytools) 
+library(RColorBrewer)
+
+#load in the RAW phyloseq object
+load("./preprocessing_phyloseq/raw_physeq.RData")
+raw_physeq
+```
+
+```{r}
+# This will create the fasta files for the ASVs with their sequences
+asv_seq_df <- 
+  raw_physeq@tax_table %>%
+  data.frame() %>%
+  dplyr::select(ASV, ASVseq)
+
+#View(asv_seq_df)
+
+
+#the ">" makes the fasta header
+asv_seq_df$ASV <- paste0(">",asv_seq_df$ASV)
+View(asv_seq_df)
+
+# Create the fasta object 
+asv_seq_fasta <- c(rbind(asv_seq_df$ASV, asv_seq_df$ASVseq))
+head(asv_seq_fasta)
+
+write(asv_seq_fasta, 
+      file = "./phylo_tree/preprocessed_ASVs.fasta")
+```
+
+```{r engine='bash', engine.opts='-l'}
+#this next step will align the asvs with mafft
+#using fasttree2; preprocessed ASVs go to MAFFT, DADA2 labels ASVs by total abundance
+#provide the path to mafft
+export PATH=/programs/mafft/bin:$PATH
+
+# change directories to provide the fasta file we made above 
+cd ./phylo_tree/
+pwd
+# > this indicates whatever you want the output to be 
+
+#set the seed for reproducibility
+RANDOM=02262000
+
+# Run Mafft 
+# To test in the shell directly from Rmd 
+# mac: command + option + enter 
+# Windows: control + alt + enter 
+# For now, use default options, note the version 
+# MAFFT automatically knows that it's a nucleotide alignment 
+/programs/mafft/bin/mafft --auto preprocessed_ASVs.fasta > mafft_aligned_ASVs.fasta
+
+cd ../
+pwd
+```
+
+```{r engine='bash', engine.opts='-l'}
+#this will run fasttree
+cd ./phylo_tree/
+pwd
+export PATH=/programs/FastTree-2.1.11:$PATH
+FastTree -nt -gtr -fastest -log FastTree.log MAFFT_aligned_ASVs.fasta > ASVs_unrooted.tree
+
+# parameters: 
+    # -nt = indicates it's a nucleotide alignment
+    # -gtr = generalized time reversible substitution model 
+    # -fastest speed up the model, reduce memory usage (recommended for datasets that have >50,000)
+    # -log = output a log file 
+    # input alignment file 
+    # specify the output tree file 
+    
+cd ../
+pwd 
+echo "The working directory is $PWD"
+#this gave the name of the working directory that we are currently in
+```
+##Phylogenetic Tree inspection and Rooting
+
+#Goals
+1.Load the fastree unrooted tree.
+2.Add tree to phyloseq object.
+3.Visualize and inspect tree with ggtree.
+4.Prune ASVs, if needed.
+5.Root our tree.
+6.Combine new tree with a phyloseq object.
+7.Save 2 phyloseq objects: 1. Unrooted tree phyloseq object, 2. Rooted tree phyloseq object.
+
+```{r}
+library(tidyverse)
+library(phyloseq)
+
+#load the RAW physeq object
+load("./preprocessing_phyloseq/raw_physeq.RData")
+raw_physeq
+
+unrooted_tree <- read.tree("./phylo_tree/ASVs_unrooted.tree")
+unrooted_tree
+
+str(unrooted_tree)
+```
+
+##MERGE the physeq object and unrooted tree
+```{r}
+stopifnot(ntaxa(raw_physeq) == ntaxa(unrooted_tree))
+unrooted_physeq <- 
+  merge_phyloseq(raw_physeq, unrooted_tree)
+unrooted_physeq
+```
+
+##Plot the tree by using ggTree
+```{r}
+kingdom_tree <- 
+  ggtree(unrooted_physeq) + 
+  # color tips by kingdom 
+  geom_tippoint(mapping = aes(color = Kingdom)) + 
+  scale_color_manual(values = c("red", "yellow", "green")) +
+  # Add title 
+  labs(title = "Unrooted Tree") + 
+  #move the legend to the bottom 
+  theme(legend.position = "bottom"); kingdom_tree
+```
+
+```{r}
+#adding labels to this tree
+kingdom_node_tree <- 
+  kingdom_tree + 
+  geom_text(aes(label=node), hjust= -0.5, vjust = -0.3, size = 2) 
+#kingdom_node_tree <- kingdom_node_tree + coord_cartesian(xlim = c(20, 10), expand = FALSE)
+#hihglight single nodes to view 
+#save incredibly large picture
+kingdom_node_tree
+#difficult to make out the nodes
+```
+
+
+##Root the tree
+```{r}
+new_unrooted_tree <-phy_tree(unrooted_tree)
+is.rooted(new_unrooted_tree)
+
+midpoint_rooted_tree <- midpoint.root(new_unrooted_tree)
+
+#check to see if the new tree is rooted
+is.rooted(midpoint_rooted_tree)
+midpoint_rooted_tree
+```
+
+```{r}
+#since I did not remove any ASVs (at this time), I will save the midroot tree
+
+#unique(asv_tax$Phylum)
+#I intended to label the tree by phylum, but there are 82 of them
+
+merged_phytree <- merge_phyloseq(midpoint_rooted_tree, raw_physeq)
+
+final_phy_tree <- ggtree(merged_phytree) + 
+  geom_tippoint(mapping = aes(color = Kingdom))+
+scale_color_manual(values = c("red", "yellow", "green"))
+
+save("final_phy_tree",
+     file = "./phylo_tree/phytree_preprocessed_physeq.RData")
+```
+
+##session information
+
+```{r}
+# Ensure reproducibility 
+devtools::session_info()
+```
