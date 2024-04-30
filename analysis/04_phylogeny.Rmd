@@ -29,7 +29,11 @@ knitr::opts_chunk$set(echo = TRUE,
 ## load packages
 
 ```{r load-packages}
-pacman::p_load(phytools, ggtree, RColorBrewer, tidyverse, phyloseq, install = FALSE)
+pacman::p_load(phytools, ggtree, RColorBrewer, tidyverse, phyloseq, microViz, install = FALSE)
+install.packages(
+  "microViz",
+  repos = c(davidbarnett = "https://david-barnett.r-universe.dev", getOption("repos"))
+)
 ```
 
 ## set seed
@@ -217,6 +221,43 @@ Blasted sequence results:
 9195 is "Uncultured bacterium clone OTU645_MIX3.66929 16S ribosomal RNA gene, partial sequence"
 
 Looks like they are maybe "new taxa" or sequences not represented by the databases.
+
+
+## Examine NA classification sequences - evaluate lengths before filtering
+
+```{r evaluate-seq-lengths}
+
+## physeq object - clean_physeq
+
+taxtable <-
+  clean_physeq@tax_table %>%
+  data.frame() %>%
+  mutate(ASVlength = nchar(ASVSeq))
+
+
+NA_kingdom <-
+  clean_physeq %>%
+  subset_taxa(., is.na(Kingdom)) %>%
+  tax_table() %>%
+  data.frame() %>%
+  mutate(ASVlength = nchar(ASVSeq))
+
+classified_kingdom <-
+  clean_physeq %>%
+  subset_taxa(., !is.na(Kingdom)) %>%
+  tax_table() %>%
+  data.frame() %>%
+  mutate(ASVlength = nchar(ASVSeq))
+
+NA_kingdom %>%
+  count(ASVlength)
+classified_kingdom %>%
+  count(ASVlength)
+
+
+### CHECK IF MOST DOMINANT ASV IS REVERSE COMPLEMENT 
+```
+
 
 ## Remove NA classification sequences from physeq 
 
@@ -431,7 +472,6 @@ save(list = c("unrooted_physeq", #unrooted physeq
               file = "data/04_phylogeny/phytree_preprocessed_physeq.RData")
 
 ```
-
 
 # Session information
 

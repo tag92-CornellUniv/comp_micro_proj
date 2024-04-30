@@ -62,6 +62,22 @@ sample_horizon_colors <- c(
   "A horizon"="rosybrown1",
   "B horizon"="lightsalmon3",
   "E horizon"= "darkred")
+
+# Color vectors for horizon+burn timeframe combined PCoA
+combined_horizon_timeframe <- c(
+  "lightgoldenrod",
+  "orange",
+  "orangered2",
+  "orangered4",
+  "lightcyan",
+  "darkslategray2",
+   "deepskyblue3",
+   "dodgerblue4",
+  "yellow",
+  "olivedrab2",
+  "olivedrab",
+  "forestgreen")
+
 ```
 
 
@@ -169,6 +185,12 @@ filtered_rooted_tree_physeq@sam_data$Site <- burn_timeframe
 sample_data(filtered_rooted_tree_physeq)$burn_timeframe <-
   sample_data(filtered_rooted_tree_physeq)$Site
 
+# combined metadata groups for colors
+combined_groups <- interaction(sample_data(scaled_unfiltered_rooted_physeq)$burn_timeframe, sample_data(scaled_unfiltered_rooted_physeq)$horizon)
+
+combined_groups
+
+
 ```
 
 ## Normalize read counts - import function
@@ -251,22 +273,26 @@ unfiltered_sorensen <-
     method="PCoA",
     distance="bray", binary=TRUE)
 
+SORENSENPLOT <-
+  plot_ordination(
+  physeq=scaled_unfiltered_rooted_physeq,
+  ordination=unfiltered_sorensen,
+  color=combined_groups,
+  title="Sorenseen PCoA of Soil Horizon and Burn Timeframe")+
+  geom_point(size=4, alpha=0.6, aes(color=combined_groups))+
+  scale_color_manual(values=combined_horizon_timeframe)
+
+SORENSENPLOT
+
+
+
 plot_ordination(
   physeq=scaled_unfiltered_rooted_physeq,
   ordination=unfiltered_sorensen,
-  color="burn_timeframe",
+  color=combined_groups,
   title="Unfiltered-Kingdom Dataset Sorensen PCoA")+
-  geom_point(size=4, alpha=0.6, aes(color=burn_timeframe))+
-  scale_color_manual(values=timeframe_colors)
-
-
-plot_ordination(
-  physeq=scaled_unfiltered_rooted_physeq,
-  ordination=unfiltered_sorensen,
-  color="horizon",
-  title="Unfiltered-Kingdom Dataset Sorensen PCoA")+
-  geom_point(size=4, alpha=0.6, aes(color=horizon))+
-  scale_color_manual(values=sample_horizon_colors)
+  geom_point(size=4, alpha=0.6, aes(color=combined_groups))+
+  scale_color_manual(values=combined_horizon_timeframe)
 
 ```
 
@@ -277,15 +303,16 @@ unfiltered_bray <-
   ordinate(
     physeq=scaled_unfiltered_rooted_physeq,
     method="PCoA",
-    distance="bray")
+    distance="bray", binary=FALSE)
 
-plot_ordination(
+
+  plot_ordination(
   physeq=scaled_unfiltered_rooted_physeq,
   ordination=unfiltered_bray,
-  color="burn_timeframe",
-  title="Unfiltered-Kingdom Dataset BC PCoA")+
-  geom_point(size=4, alpha=0.6, aes(color=burn_timeframe))+
-  scale_color_manual(values=timeframe_colors)
+  color=combined_groups,
+  title="Bray Curtis PCoA of Soil Horizon and Burn Timeframe")+
+  geom_point(size=4, alpha=0.6, aes(color=combined_groups))+
+  scale_color_manual(values=combined_horizon_timeframe) 
 
 
 plot_ordination(
@@ -308,13 +335,26 @@ unfiltered_unifrac <-
     method="PCoA",
     distance="wunifrac")
 
-plot_ordination(
+WUNIFRAC <-
+  plot_ordination(
   physeq=scaled_unfiltered_rooted_physeq,
   ordination=unfiltered_unifrac,
-  color="burn_timeframe",
-  title="Unfiltered-Kingdom Dataset Unweighted Unifrac PCoA")+
-  geom_point(size=4, alpha=0.6, aes(color=burn_timeframe))+
-  scale_color_manual(values=timeframe_colors)
+  color=combined_groups,
+  title="Weighted Unifrac PCoA of Soil Horizon and Burn Timeframe")+
+  geom_point(size=4, alpha=0.6, aes(color=combined_groups))+
+  scale_color_manual(values=combined_horizon_timeframe)
+
+WUNIFRAC
+
+
+plot_ordination(
+  physeq = scaled_unfiltered_rooted_physeq,
+  ordination = unfiltered_unifrac,
+  color = combined_groups,  # Use combined variable for coloring
+  title = "Unfiltered-Kingdom Dataset Weighted Unifrac PCoA"
+) +
+  scale_color_gradient(values=combined_horizon_timeframe) +
+geom_point(size = 4, alpha = 0.8, aes(color = combined_groups))
 
 
 plot_ordination(
@@ -322,8 +362,32 @@ plot_ordination(
   ordination=unfiltered_unifrac,
   color="horizon",
   title="Unfiltered-Kingdom Dataset Weighted Unifrac PCoA")+
-  geom_point(size=4, alpha=0.6, aes(color=horizon))+
+  geom_point(size=4, alpha=0.6, aes(color=horizon, shape=burn_timeframe))+
   scale_color_manual(values=sample_horizon_colors)
+
+SORENSENPLOT + BRAYPLOT + WUNIFRAC
+
+```
+
+
+###NMDS
+
+```{r NMDS}
+unfiltered_nmds <-
+  ordinate(
+    physeq=scaled_unfiltered_rooted_physeq,
+    method="NMDS",
+    distance="wunifrac")
+
+plot_ordination(
+  physeq=scaled_unfiltered_rooted_physeq,
+  ordination=unfiltered_nmds,
+  color=combined_groups,
+  title="Weighted Unifrac PCoA of Soil Horizon and Burn Timeframe")+
+  geom_point(size=4, alpha=0.6, aes(color=combined_groups))+
+  scale_color_manual(values=combined_horizon_timeframe)
+
+
 
 ```
 
@@ -349,3 +413,39 @@ adonis2(scaled_unifrac ~ horizon, data=metadata)
 
 
 # Filtered dataset
+
+## Check filtered read counts
+
+```{r filtered-read-counts}
+
+```
+
+## Normalize filtered read counts
+```{r normalize-filtered-read-counts}
+
+```
+
+## Filtered community analyses
+
+### Sorensen 
+
+```{r filtered-dataset-sorensen}
+
+```
+
+### Bray-Curtis
+```{r filtered-dataset-braycurtis}
+
+```
+
+### Weighted Unifrac
+```{r filtered-weighted-unifrac}
+
+```
+
+### Permanova 
+
+```{r filtered-permanova}
+
+```
+
