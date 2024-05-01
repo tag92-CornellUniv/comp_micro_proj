@@ -1,0 +1,296 @@
+---
+title: "Biodiversity analysis"
+author: "T. Griffin"
+date: "2024-04-29"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## set the seed to keep things consistent
+```{r seed}
+set.seed(02262000)
+```
+
+## Goals
+Calculate the Hill Diversity of the samples.
+Evaluate the rarefaction curves.
+Evaluate the Diversity values.
+Makes notes of specific samples and their seq depth.
+
+I'm thinking that the burn year should impact species richness and influence more dominant taxa to appear with more prescribed burning.
+
+## Load all the libraries
+```{r loading-libraries}
+library(tidyverse)
+library(devtools)
+library(patchwork)
+library(iNEXT)
+library(phyloseq)
+
+#add in the colors
+horizon_colors <- c(
+"A horizon" = "pink",
+"B horizon" = "green",
+"E horizon" = "orange")
+
+burn_year_colors <-  c(
+  "1" = "blue",
+  "2" = "yellow",
+  "4" = "red",
+  "CH" = "purple")
+```
+
+## load in the raw phyloseq object
+```{r load-in-data}
+load("/local/workdir/tag92/git_repos/comp_micro_proj/preprocessing_phyloseq/Data/NEW_raw_physeq.RData")
+NEW_raw_physeq
+min(sample_sums(NEW_raw_physeq))
+
+metadata_df <-
+  NEW_raw_physeq %>%
+  sample_data() %>%
+  data.frame()
+
+head(metadata_df)
+
+```
+
+
+## Running iNEXT for diversity calculations
+```{r running-inext-for-diversity-calculations}
+iNEXT_input_df <- 
+  NEW_raw_physeq %>%
+  otu_table() %>%
+  data.frame()
+
+dim(iNEXT_input_df)
+
+#this will actually run inext
+#iNEXT_data <- iNEXT(iNEXT_input_df, 
+                   #q = c(0,1,2), datatype = "abundance")
+
+#save(iNEXT_data, file = "./biodiversity-analysis/new_iNEXT_data.RData")
+```
+
+## Evaluating diversity
+```{r evaluating-diversity}
+load("/local/workdir/tag92/git_repos/comp_micro_proj/biodiversity-analysis/new_iNEXT_data.RData")
+str(iNEXT_data)
+typeof(iNEXT_data)
+```
+
+## Plot Diversity
+```{r}
+# Prepare Colors 
+color_df <- 
+  iNEXT_input_df %>%
+  colnames() %>%
+  data.frame()
+
+head(color_df)
+
+# Rename the column 
+colnames(color_df)[1] <- "names"
+
+head(color_df)
+```
+```{r}
+# Make a helper dataframe for plotting with colors 
+iNEXT_color_df <- 
+  color_df %>%
+  # Fix the names for merging
+  mutate(names = gsub(names, pattern = "[.]", replace = "-"),
+         names = gsub(names, pattern = "X",  replace = "")) %>%
+  # Merge with metadata
+  left_join(metadata_df, by = "names") %>%
+  # Merge with colors for plotting with ggiNEXT
+  left_join(data.frame(horizon_colors = horizon_colors,
+            horizon = names(horizon_colors)),
+            by = "horizon")
+```
+
+
+```{r ggiNEXT, fig.width=8, fig.height= 3.5}
+#Plot rarefaction!
+#rarefaction/extrapolation curve, type = 1
+
+#order Q, when it is zero= it equals the richness/total number of taxa, when it equals 1, it equals the exponentialShannon/ number of common taxa, when it is 2, this is the inverse simpson/number of dominant taxa
+
+ggiNEXT(iNEXT_data, type = 1, facet.var = "Order.q") + 
+  facet_wrap(~Order.q, scales = "fixed") + 
+  scale_color_manual(values = iNEXT_color_df$horizon_colors, guide = FALSE) + 
+  scale_fill_manual(values = iNEXT_color_df$horizon_colors, guide = FALSE) + 
+  scale_shape_manual(values = base::rep(17, nsamples(NEW_raw_physeq)),
+                     guide = FALSE) + 
+  theme(legend.position = "none")
+```
+there are outliers with the A horizon, but each horizon seems to have similar richness. As expected, graphs plateu sooner as abundance is weighted more.
+
+## Manually plot diversity
+```{r manually-plot-diversity}
+iNEXT_manual_df <- 
+  iNEXT_data$iNextEst$size_based %>%
+  dplyr::rename(names = Assemblage) %>%
+  # Fix the samples names 
+  mutate(names = gsub(names, pattern = "[.]", replace = "-"),
+         names = gsub(names, pattern = "X", replace = "")) %>%
+  # join with metadata 
+  left_join(., metadata_df, by = "names") %>%
+  # Add colors to data frame
+  left_join(., data.frame(horizon_colors = horizon_colors,
+                          horizon = names(horizon_colors)),
+            by = "horizon") 
+# Inspect 
+dim(iNEXT_manual_df)
+#8640, 57
+
+str(iNEXT_manual_df)
+```
+
+## Plot rarefaction curve for horizon
+```{r Plot-rarefaction-curve-for-horizon}
+iNEXT_manual_df %>%
+  # Filter out rows that are calcaulted by rarefaction from iNEXT
+  dplyr::filter(Method == "Rarefaction") %>%
+  # Now, let's draw the plot, be sure to group by the samples if using geom_line!
+  ggplot(aes(x = m, y= qD, color = horizon, group = names)) + 
+  geom_line() + 
+  # Facet with the station to see the samples better 
+  facet_grid(Order.q~horizon, scales = "free") + 
+  scale_color_manual(values = horizon_colors) + 
+  labs(x = "Number of Sequences (Library Size)", 
+       y = "Effective Number of ASVs") + 
+  theme_bw() + 
+  #guides(color = guide_legend(nrow = 2, byrow = TRUE)) + 
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1),
+        legend.title = element_blank()) 
+
+iNEXT_manual_df %>%
+  # Filter out rows that are calcaulted by rarefaction from iNEXT
+  dplyr::filter(Method == "Rarefaction") %>%
+  # Now, let's draw the plot, be sure to group by the samples if using geom_line!
+  ggplot(aes(x = m, y= qD, color = burn_year, group = names)) + 
+  geom_line() + 
+  # Facet with the station to see the samples better 
+  facet_grid(Order.q~burn_year, scales = "free") + 
+  scale_color_manual(values = burn_year_colors) + 
+  labs(x = "Number of Sequences (Library Size)", 
+       y = "Effective Number of ASVs") + 
+  theme_bw() + 
+  #guides(color = guide_legend(nrow = 2, byrow = TRUE)) + 
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1),
+        legend.title = element_blank()) 
+```
+With the exception of outliers (ex. the sample with high ASVs in A), the diversity metrics don't appear to be much different amongst the soil horizons. The majority of samples seem to plateau around 2000 taxa. There are two samples from A that have higher richness, or more species present, and there is a slightly higher Simpson diversity in E, indicating more dominant taxa in that sample. 
+#When looking at burn year, the rarefactions appear to be similar, so there isn't much difference caused by burn year or horizon on richness
+
+## Making the boxplots
+```{r Making-the-boxplots}
+horizon_names <- c("A Horizon", "E Horizon","B Horizon")
+
+names(horizon_names) <- c("A Horizon", "E Horizon","B Horizon")
+
+# Make a dataframe
+obs_div_df <- 
+  iNEXT_manual_df %>%
+  dplyr::filter(Method == "Observed") %>%
+  left_join(data.frame(horizon_names = horizon_names, 
+                       horizon = names(horizon_names)), 
+                       by = "horizon")
+
+# Check it 
+head(obs_div_df)
+
+#make a boxplot by the horizon
+obs_div_df %>%
+  ggplot(aes(x = horizon_names, y = qD, fill = horizon, color = horizon)) + 
+  facet_wrap(~Order.q, scales = "fixed") + 
+  geom_jitter(size = 2.5) + 
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + 
+  scale_color_manual(values = horizon_colors) + 
+  scale_fill_manual(values = horizon_colors) + 
+  labs(y = "Effective Number of ASVs") + 
+  theme_bw() +
+  theme(legend.position = "bottom",
+        axis.title.x = element_blank(),
+        legend.title = element_blank())
+
+burnyears <- c("CH", "1", "2", "4")
+
+names(burnyears) <- c("CH", "1", "2", "4")
+
+# do the same thing for burn year
+by_obs_div_df <- 
+  iNEXT_manual_df %>%
+  dplyr::filter(Method == "Observed") %>%
+  left_join(data.frame(burnyears = burnyears, 
+                       burn_year = names(burnyears)), 
+                       by = "burn_year")
+
+# Check it 
+head(by_obs_div_df)
+
+#make a boxplot by the burn year
+by_obs_div_df %>%
+  ggplot(aes(x = burnyears, y = qD, fill = burn_year, color = burn_year)) + 
+  facet_wrap(~Order.q, scales = "fixed") + 
+  geom_jitter(size = 2.5) + 
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) + 
+  scale_color_manual(values = burn_year_colors) + 
+  scale_fill_manual(values = burn_year_colors) + 
+  labs(y = "Effective Number of ASVs") + 
+  theme_bw() +
+  theme(legend.position = "bottom",
+        axis.title.x = element_blank(),
+        legend.title = element_blank())
+```
+Horizon B has the lowest values for each diversity measurement. While horizon A appears to have higher richness and common taxa, horizon E has a slightly higher value for dominant taxa. Overall, the measurements for each of the horizons do not vary by much. 
+
+for burn year, there is still nothing too interesting. Although, there appears to be slight increase of the ASVs in the control.
+
+
+## Environmental variable Check
+
+there aren't really any environmental variables in the metadata, but looking at depth could be cool since it correlates to horizon
+
+```{r environmental-variable-check}
+
+#for some reason, the units are in the rows so this needs to be removed
+nocm_iNEXT_manual_df <- iNEXT_manual_df %>%
+  dplyr::filter(Method == "Observed") %>%
+  mutate(Depth = as.numeric(sub("cm", "", Depth)))
+
+env_df <- 
+  metadata_df %>%
+  dplyr::select(names, Depth:burn_year)
+# inspect
+head(env_df)
+
+nocm_iNEXT_manual_df %>%
+  dplyr::filter(Method == "Observed") %>%
+  ggplot(aes(x = Depth, y = qD)) + 
+  facet_wrap(.~Order.q, scales = "fixed") + 
+  geom_point(aes(color = burn_year)) + 
+  stat_smooth(method = "lm", formula = y ~poly(x, 2)) + 
+  labs(x = "Depth (in cm)", y = "# of ASVs") + 
+  scale_color_manual(values = burn_year_colors) + 
+  theme_bw() + 
+  theme(legend.position = "bottom",
+        legend.title = element_blank()) 
+```
+it seems that with the increase in depth, diversity also drops. However, with year 4, there seems to be a slight increase in depth, but this could just be due to outliers present. 
+
+
+## Session information
+```{r session-information}
+devtools::session_info()
+```
+
+
