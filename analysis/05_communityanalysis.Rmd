@@ -25,6 +25,10 @@ knitr::opts_chunk$set(echo = TRUE,
 
 ```
 
+Note before document start:
+
+I was originally going to filter out the sequences that were unclassified at the kingdom level and run the community analyses on both the filtered and unfiltered datasets. However, I ended up not including both in the final analysis for time reasons. The start of the code may reflect that originally I planned to complete the analyses for both, but this was not actually feasible for me to do within the time constraints of the semester. Because of this, community composition analyses are run on the unfiltered dataset, which does include all of the reads that are unclassified at the Kingdom level.
+
 # Setup 
 
 ## set seed
@@ -87,15 +91,14 @@ combined_horizon_timeframe <- c(
 2. Remove low-depth samples
 3. Normalize read counts
 4. Calculate community dissimilarities with three metrics:
-  a. Sorensen
-  b. Bray-Curtis
-  c. Abundance weighted unifrac
+  - Sorensen
+  - Bray-Curtis
+  - Abundance weighted unifrac
 5. Visualize the community data with:
-  a. PCoA
-  b. NMDS
+  - PCoA
+  - NMDS
 6. Stats analyses
 
-# Unfiltered dataset
 
 ## Explore read counts
 
@@ -186,7 +189,7 @@ sample_data(filtered_rooted_tree_physeq)$burn_timeframe <-
   sample_data(filtered_rooted_tree_physeq)$Site
 
 # combined metadata groups for colors
-combined_groups <- interaction(sample_data(scaled_unfiltered_rooted_physeq)$burn_timeframe, sample_data(scaled_unfiltered_rooted_physeq)$horizon)
+combined_groups <- interaction(sample_data(filtered_rooted_tree_physeq)$burn_timeframe, sample_data(filtered_rooted_tree_physeq)$horizon)
 
 combined_groups
 
@@ -251,6 +254,10 @@ head(scaled_totalseqs_df)
 
 max(scaled_totalseqs_df) - min(scaled_totalseqs_df)
 
+
+# save normalized reads
+save(scaled_unfiltered_rooted_physeq, file="data/05_communityanalysis/normalizedreads.RData")
+
 #Plot as histogram
 
 scaled_totalseqs_df %>%
@@ -285,15 +292,6 @@ SORENSENPLOT <-
 SORENSENPLOT
 
 
-
-plot_ordination(
-  physeq=scaled_unfiltered_rooted_physeq,
-  ordination=unfiltered_sorensen,
-  color=combined_groups,
-  title="Unfiltered-Kingdom Dataset Sorensen PCoA")+
-  geom_point(size=4, alpha=0.6, aes(color=combined_groups))+
-  scale_color_manual(values=combined_horizon_timeframe)
-
 ```
 
 ### Bray-Curtis
@@ -306,22 +304,15 @@ unfiltered_bray <-
     distance="bray", binary=FALSE)
 
 
-  plot_ordination(
+ BRAYPLOT <-  plot_ordination(
   physeq=scaled_unfiltered_rooted_physeq,
   ordination=unfiltered_bray,
   color=combined_groups,
   title="Bray Curtis PCoA of Soil Horizon and Burn Timeframe")+
   geom_point(size=4, alpha=0.6, aes(color=combined_groups))+
   scale_color_manual(values=combined_horizon_timeframe) 
-
-
-plot_ordination(
-  physeq=scaled_unfiltered_rooted_physeq,
-  ordination=unfiltered_bray,
-  color="horizon",
-  title="Unfiltered-Kingdom Dataset BC PCoA")+
-  geom_point(size=4, alpha=0.6, aes(color=horizon))+
-  scale_color_manual(values=sample_horizon_colors)
+ 
+BRAYPLOT
 
 ```
 
@@ -347,14 +338,7 @@ WUNIFRAC <-
 WUNIFRAC
 
 
-plot_ordination(
-  physeq = scaled_unfiltered_rooted_physeq,
-  ordination = unfiltered_unifrac,
-  color = combined_groups,  # Use combined variable for coloring
-  title = "Unfiltered-Kingdom Dataset Weighted Unifrac PCoA"
-) +
-  scale_color_gradient(values=combined_horizon_timeframe) +
-geom_point(size = 4, alpha = 0.8, aes(color = combined_groups))
+## Another way of viewing, with maybe a better legend
 
 
 plot_ordination(
@@ -365,35 +349,72 @@ plot_ordination(
   geom_point(size=4, alpha=0.6, aes(color=horizon, shape=burn_timeframe))+
   scale_color_manual(values=sample_horizon_colors)
 
-SORENSENPLOT + BRAYPLOT + WUNIFRAC
+
 
 ```
 
+All three plots show a clear separation of samples based on soil horizon, but not burn timeframe. Even within each soil horizon, there is no clear separation based on burn timeframe. This is not at all what I expected! I thought that they would cluster based on both soil horizon AND burn timeframe, but this indicates to me that the burns have minimal impact on the community dissimilarities.
+
+This is especially surprising to me because of the biodiversity boxplots in 03_biodiversity and the crazy tree from 04_phylogeny anaylsis. I thought that maybe lowly abundant / rare taxa across burn timeframes might cause some community differences, but even when looking at Sorensen dissimilarity which deals with just presence/absence, there still isn't a large difference (at least when plotting.) This will be examined further with the permanova/adonis calculations.
 
 ###NMDS
 
 ```{r NMDS}
-unfiltered_nmds <-
+unfiltered_1_nmds <-
+    ordinate(
+    physeq=scaled_unfiltered_rooted_physeq,
+    method="NMDS",
+    distance="bray", binary=TRUE)
+
+unfiltered_2_nmds <-
+  ordinate(
+    physeq=scaled_unfiltered_rooted_physeq,
+    method="NMDS",
+    distance="bray", binary=FALSE)
+
+unfiltered_3_nmds <-
   ordinate(
     physeq=scaled_unfiltered_rooted_physeq,
     method="NMDS",
     distance="wunifrac")
+  
 
 plot_ordination(
   physeq=scaled_unfiltered_rooted_physeq,
-  ordination=unfiltered_nmds,
+  ordination=unfiltered_1_nmds,
   color=combined_groups,
-  title="Weighted Unifrac PCoA of Soil Horizon and Burn Timeframe")+
+  title="Sorensen NMDS of Soil Horizon and Burn Timeframe")+
   geom_point(size=4, alpha=0.6, aes(color=combined_groups))+
   scale_color_manual(values=combined_horizon_timeframe)
 
+plot_ordination(
+  physeq=scaled_unfiltered_rooted_physeq,
+  ordination=unfiltered_2_nmds,
+  color=combined_groups,
+  title="Bray-Curtis NMDS of Soil Horizon and Burn Timeframe")+
+  geom_point(size=4, alpha=0.6, aes(color=combined_groups))+
+  scale_color_manual(values=combined_horizon_timeframe)
 
+plot_ordination(
+  physeq=scaled_unfiltered_rooted_physeq,
+  ordination=unfiltered_3_nmds,
+  color=combined_groups,
+  title="Weighted Unifrac NMDS of Soil Horizon and Burn Timeframe")+
+  geom_point(size=4, alpha=0.6, aes(color=combined_groups))+
+  scale_color_manual(values=combined_horizon_timeframe)
 
 ```
 
-### Permanova
 
-```{r permanova}
+The pattern stays consistent with NMDS - even when "smushing" the multiple axes of diversity, the soils do not separate based on burn timeframe. It still seems that the primary differences in community composition comes from the soil horizon.
+
+It is interesting that in almost all of the PCoAs and NMDS graphs show the E horizon as an intermediate between the A and B soil horizons. I thought this was strange, since I initially thought that the E horizon was the deepest soil layer. But this is not true! The E horizon sits between the A and B horizons, so it makes sense that the E horizon communities seem like an intermediate between the A and B horizons.
+
+
+
+### Permanova - Burn timeframe
+
+```{r permanova-burn}
 
 scaled_sorensen <- phyloseq::distance(scaled_unfiltered_rooted_physeq, method = "bray", binary = TRUE)
 scaled_bray <- phyloseq::distance(scaled_unfiltered_rooted_physeq, method = "bray")
@@ -407,45 +428,20 @@ adonis2(scaled_bray ~ burn_timeframe, data=metadata)
 
 adonis2(scaled_unifrac ~ burn_timeframe, data=metadata)
 
+```
+
+
+### Permanova - Horizon 
+```{r permanova-horizon}
+
+adonis2(scaled_sorensen ~ horizon, data=metadata)
+
+adonis2(scaled_bray ~ horizon, data=metadata)
+
 adonis2(scaled_unifrac ~ horizon, data=metadata)
 
 ```
 
+The community dissimilarities based on soil horizon are statistically significant, but the community dissimilarities based on burn timeframe are not. I wonder if this is still true if we look within horizon groups?
 
-# Filtered dataset
-
-## Check filtered read counts
-
-```{r filtered-read-counts}
-
-```
-
-## Normalize filtered read counts
-```{r normalize-filtered-read-counts}
-
-```
-
-## Filtered community analyses
-
-### Sorensen 
-
-```{r filtered-dataset-sorensen}
-
-```
-
-### Bray-Curtis
-```{r filtered-dataset-braycurtis}
-
-```
-
-### Weighted Unifrac
-```{r filtered-weighted-unifrac}
-
-```
-
-### Permanova 
-
-```{r filtered-permanova}
-
-```
-
+I would have liked to look at this more deeply to answer that question, but wasn't sure how to filter out the facets to examine without disrupting the tree portion of the physeq object. 

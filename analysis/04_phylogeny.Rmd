@@ -171,6 +171,8 @@ kingdomtree <-
 
 ```
 
+This tree looks horrible!!!!!
+
 ## Inspect tree more closely and ID some grey nodes
 
 ```{r inspect-grey-nodes}
@@ -257,7 +259,6 @@ classified_kingdom %>%
 
 ### CHECK IF MOST DOMINANT ASV IS REVERSE COMPLEMENT 
 ```
-
 
 ## Remove NA classification sequences from physeq 
 
@@ -366,7 +367,6 @@ unrooted_filtered_tree
 ```
 
 
-
 ## merge filtered phyloseq
 
 ```{r merge-filtered-phyloseq}
@@ -392,6 +392,8 @@ filtered_kingdomtree <-
 filtered_kingdomtree
 
 ```
+
+There is still a crazy separation happening, even after removing the unclassified sequences.
 
 # Root Both trees
 
@@ -459,6 +461,8 @@ ggtree(filtered_rooted_tree_physeq) +
   labs(title="Rooted Filtered Tree")
 
 ```
+
+Filtering vs not filtering the tree both result in a weird, split tree. Almost all sequences on both halves of the rooted tree are the exact same length, so I am not really sure what is happening here or what to make of this data!!
 
 ## Save phyloseq objects
 

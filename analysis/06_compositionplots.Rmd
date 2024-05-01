@@ -352,7 +352,7 @@ phylum_df %>%
 
 ## Family plotting
 
-```{r}
+```{r family-plotting}
 
 family_df <-
   phyloseq_with_reps %>%

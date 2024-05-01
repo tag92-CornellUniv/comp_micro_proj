@@ -1,0 +1,1 @@
+All subfolders within this folder contain images output by knitting each Rmd analysis file in the analysis folder. The image names match the names of the code chunk that generated the image from the associated analysis Rmd/html files.
