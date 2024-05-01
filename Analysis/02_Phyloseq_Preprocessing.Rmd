@@ -39,11 +39,7 @@ Finally, we will write a data file of phyloseq output.
 
 ## load the ASV count table and tax table
 ```{r load-the-ASV-count-table-and-tax-table}
-<<<<<<< HEAD
 load("/local/workdir/tag92/git_repos/comp_micro_proj/Data/01_DADA2/output_DADA2_ASV_counts.RData")
-=======
-load("./DADA2/Data/output_DADA2_ASV_counts.RData")
->>>>>>> 5fb24fe06b44024b1e979f22b3b3ede6b0b8ab55
 
 # Inspect asv_tab
 head(asv_tab)[,1:5]
@@ -57,11 +53,7 @@ str(asv_tab)
 #this will fix the names in the table
 ```
 ```{r load-taxonomy-table}
-<<<<<<< HEAD
 tax_df <- read.table("/local/workdir/tag92/git_repos/comp_micro_proj/Data/01_DADA2/output_DADA2_ASV_taxonomy.tsv", sep = "\t", skip = 1)
-=======
-tax_df <- read.table("./DADA2/Data/output_DADA2_ASV_taxonomy.tsv", sep = "\t", skip = 1)
->>>>>>> 5fb24fe06b44024b1e979f22b3b3ede6b0b8ab55
 
 head(tax_df)
 
@@ -79,11 +71,7 @@ tax_mat <-
 
 ## Load tracked reads
 ```{r load-tracked-reads}
-<<<<<<< HEAD
 load("/local/workdir/tag92/git_repos/comp_micro_proj/Data/01_DADA2/output_DADA2_track_read_counts.RData")
-=======
-load("./DADA2/Data/output_DADA2_track_read_counts.RData")
->>>>>>> 5fb24fe06b44024b1e979f22b3b3ede6b0b8ab55
 #Take a look at the data
 track_counts_df
 
@@ -91,11 +79,7 @@ head(track_counts_df)
 dim(track_counts_df)
 
 #load in metadata
-<<<<<<< HEAD
 metadata_df <- read.csv("/local/workdir/tag92/git_repos/comp_micro_proj/metadata/comp_micro_proj_metadata.csv")
-=======
-metadata_df <- read.csv("./metadata/comp_micro_proj_metadata.csv")
->>>>>>> 5fb24fe06b44024b1e979f22b3b3ede6b0b8ab55
 #since the metadata does not separate the burn year into their own column, I have to do that myself. I cannot do this in one step, so I will create two dataframes: one that contains all values for the numerical years, and another with the values for the controls since the control burn years have characters. I am fixing this here so maybe I can use the burn year column in later steps
 
 #this first one is for the rows with numbers
@@ -154,11 +138,7 @@ raw_physeq <- phyloseq(otu_table(asv_tab, taxa_are_rows = TRUE),
                        tax_table(tax_mat))
 
 #saving
-<<<<<<< HEAD
 save(raw_physeq, file = "/local/workdir/tag92/git_repos/comp_micro_proj/Data/raw_physeq.RData")
-=======
-save(raw_physeq, file = "./preprocessing_phyloseq/raw_physeq.RData")
->>>>>>> 5fb24fe06b44024b1e979f22b3b3ede6b0b8ab55
 ```
 
 ## Remove mitochondrias and chloroplasts
@@ -240,11 +220,8 @@ seqSums_df %>%
   ggplot(aes(TotalSeqs, fill = horizon)) +
   geom_density(alpha = 0.5)
 ```
-<<<<<<< HEAD
 Burn year four has higher depth than the other burn years and controls. For horizon, sequencing depth does not vary by much. 
 
-=======
->>>>>>> 5fb24fe06b44024b1e979f22b3b3ede6b0b8ab55
 
 ## remove lowly reads
 ```{r remove-lowly-reads}
@@ -259,21 +236,13 @@ max(sample_sums(nochlorosmitos_physeq))
 NEW_raw_physeq <- nochlorosmitos_physeq
 ```
 
-<<<<<<< HEAD
 From the density plots, a lot of reads are less than 50000, and only a few exceed 100000. This does not appear problematic. 
-=======
-#From the density plots, a lot of reads are less than 50000, and only a few exceed 100000. This does not appear problematic. 
->>>>>>> 5fb24fe06b44024b1e979f22b3b3ede6b0b8ab55
 
 
 ## Save this phyloseq object
 ```{r save-this-phyloseq-object}
 save(NEW_raw_physeq,
-<<<<<<< HEAD
      file = "/local/workdir/tag92/git_repos/comp_micro_proj/Data/NEW_raw_physeq.RData")
-=======
-     file = "./preprocessing_phyloseq/NEW_raw_physeq.RData")
->>>>>>> 5fb24fe06b44024b1e979f22b3b3ede6b0b8ab55
 ```
 
 # Session info
