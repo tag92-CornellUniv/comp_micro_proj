@@ -295,10 +295,10 @@ wUNI_burnyear_nmds <-
   theme_bw()
 wUNI_burnyear_nmds
 ```
-<<<<<<< HEAD
-The stress value is low, around 0.05, and is indicative of a good fit for the represented and that horizon may cause the variation observed. NMDS and PCoA plots are also similar, so this is a good sign. 
-=======
->>>>>>> 5fb24fe06b44024b1e979f22b3b3ede6b0b8ab55
+
+The horizon nmds plot has a low stress valu, around 0.05, and is indicative of a good fit for the represented variable and that horizon may cause the variation observed. NMDS and PCoA plots are also similar, so this is a good sign. 
+
+There isn't a strong correlation with burn year, which completely goes against the hypothesis. Data points cluster more based on horizon, and this can be observed within plots colored by horizon as datapoints.
 
 ## PERMANOVA
 ```{r running-permanova}
@@ -331,10 +331,9 @@ adonis2(scaled_wUnifrac_dist ~ burn_year, data=metadata_burnyear)
 
 metadata_burnyear <- data.frame(sample_data(scaled_merged_phytree))
 ```
-<<<<<<< HEAD
+
 Most variation is explained in the weighted unifrac for horizon (almost 0.50 Rvalue), and has the highest F statistic, showing greater differences between samples due to horizon. 
-=======
->>>>>>> 5fb24fe06b44024b1e979f22b3b3ede6b0b8ab55
+
 
 ## Running betadispr
 ```{r betadispr}
@@ -424,10 +423,7 @@ view(phyloseq_with_reps@sam_data)
 phylum_df %>%
   # Warning: It's important to have one sample per x value, 
   # otherwise, it will take the sum between multiple samples
-<<<<<<< HEAD
-  
-=======
->>>>>>> 5fb24fe06b44024b1e979f22b3b3ede6b0b8ab55
+
  #must separate by horizon so that barplots are not stacking on top of each other 
   dplyr::filter(horizon=="A horizon") %>%
   ggplot(aes(x = replicate_number, y = Abundance, fill = Phylum)) + 
@@ -523,12 +519,12 @@ phylum_df %>%
           legend.position = "right")
 
 ```
-<<<<<<< HEAD
+
 Acidobacteriodota seems to have a higher composition at lower horizons, but I can only tell this from the bar plots.  These bacteria are typically found in hot springs so it is interesting seeing it appear. 
-=======
+
 Acidobacteriodota seems to be higher at the lower horizons!
 It also seems higher on more burned soils.
->>>>>>> 5fb24fe06b44024b1e979f22b3b3ede6b0b8ab55
+
 
 # Do the same thing for family and genus
 ```{r family-and-genus}
