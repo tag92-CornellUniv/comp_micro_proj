@@ -379,8 +379,9 @@ family_df %>%
   labs(title = "Actinobacteriota Family Abundance") + 
   scale_color_manual(values = timeframe_colors) + 
   scale_fill_manual(values = timeframe_colors) + 
-  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1),
-        legend.position = "bottom")
+   theme(legend.position="none", 
+        axis.text.x = element_text(hjust = 1, vjust = 1),
+        strip.text.y.right = element_text(angle = 0))
   
 # Can not easily facet with horizon due to absence of Micrococcaceae in A horizon of all samples, for some reason
 
@@ -397,9 +398,9 @@ family_df %>%
   labs(title = "Acidobacteriota Family Abundance") + 
   scale_color_manual(values = timeframe_colors) + 
   scale_fill_manual(values = timeframe_colors) + 
-  theme(axis.text.x = element_text(angle = 30, 
-                                   hjust = 1, 
-                                   vjust = 1))
+   theme(legend.position="none", 
+        axis.text.x = element_text(hjust = 1, vjust = 1),
+        strip.text.y.right = element_text(angle = 0, size=5))
 
 # Plotting firmicutes too  because I am curious about bacillus
 
@@ -422,6 +423,15 @@ family_df %>%
 ```
 
 Interesting that Bacillaceae is so low in A horizon for all burn time frames, but in B and E horizons it is generally highest in one year post burn soils and gradually decreases. Maybe it is one of the primary microbes that colonizes the soil after a burn and number diminishes as the soil microbiota is restored?
+
+# Final thoughts:
+
+It doesn't seem, based on all analyses, that prescribed burns have an impact on the soil microbial community. The PERMANOVA test results in 05_communityanalysis were significant for soil horizon, but not burn timeframe. Even our NMDS which contains multiple axes of variation combined, there was still no separation based on even simply burnt or unburnt soils. 
+
+We did see that the E horizon seemed to be a transition point between the A and B horizons, which is slightly counter-intuitive based on horizon names but does make sense because the E horizon is nested between the upper A horizon and the slightly lower B horizon.
+
+When we looked in this analysis at which microbes were differentially abundant, we saw a large degree of differential abundance between burn horizons, but when examining the burn timeframes within horizons we saw little to no difference in community composition. We did not see patterns of microbial succession that we expected based on species typing. If there was any succession of specific genes or metabolic capabilities it was not visible in this analysis, but simply based on species the main driver of community composition is soil horizon and not burn timeframes.
+
 
 
 
